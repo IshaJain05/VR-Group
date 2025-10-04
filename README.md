@@ -1,125 +1,167 @@
 # VR-Group
 Maintenance application for VR Group 
 
-Got it—here’s a **clean, payment-free, technician-free** version you can drop into the proposal.
+---
 
-# Architecture (Firebase-first, no payments)
+# 🏗️ Architecture
 
-**Client (Web PWA)**
+### **Client (Web / PWA)**
 
-* React/Next.js + Tailwind
-* Routes: `/login`, `/resident/dashboard`, `/resident/tickets/new`, `/resident/tickets/[id]`, `/admin/*`
-* Push notifications via FCM
-* Form validation with Zod/React Hook Form
+* **Frontend:** React / Next.js + Tailwind CSS
+* **PWA features:** installable, offline cache, push notifications (via FCM)
+* **Routes:**
 
-**Identity & Access**
-
-* Firebase Auth (Phone OTP + Email/Password)
-* Custom Claims: `role` (`resident` | `admin`), `buildingId`, `flatId`
-
-**Data & Files**
-
-* Firestore (multi-tenant by `buildingId`)
-* Firebase Storage for ticket images/videos & generated docs
-
-**Backend**
-
-* Cloud Functions (TypeScript) for:
-
-  * Ticket lifecycle hooks (onCreate/onUpdate)
-  * Admin actions (assign/unassign removed; still can “acknowledge”, “schedule”, “resolve”)
-  * Notifications (Email/FCM/optional WhatsApp)
-  * Audit logging & analytics export (optional BigQuery)
-
-**Notifications**
-
-* FCM: status changes to residents, new ticket alerts to admins
-* Email: ticket created/acknowledged/resolved (SendGrid via CF)
-* (Optional) WhatsApp: admin alerts
-
-**Ops & Security**
-
-* Firebase Hosting (CDN + preview channels)
-* Firestore/Storage Rules (RBAC via claims)
-* Cloud Logging & Error Reporting
-* Daily backups (Firestore export to GCS)
+  * `/login`
+  * `/resident/dashboard`
+  * `/resident/tickets/new`
+  * `/resident/tickets/[id]`
+  * `/admin/dashboard`
+  * `/admin/tickets/[id]`
 
 ---
 
-# Core Flow (no technician, no payments)
+### **Authentication & Access**
 
-**Actors:** Resident, Admin
+* **Firebase Auth (Phone OTP only)**
 
-1. **Onboard & Verify**
+  * Residents sign in via phone number → OTP
+  * Admins added manually or invited by dev console
+* **Custom Claims** for role-based access:
 
-* Admin creates/invites resident → Auth with phone/email → assign `buildingId` + `flatId` via custom claims.
-
-2. **Raise Ticket (Resident)**
-
-* Resident selects **category**, **priority**, **preferred date/time window**, adds **description** + **images** → ticket `status='pending'`.
-
-3. **Auto-Notify (System)**
-
-* Cloud Function triggers: send **admin alert** (FCM/email) with quick links.
-
-4. **Acknowledge & Schedule (Admin)**
-
-* Admin reviews details, can:
-
-  * **Acknowledge** (adds ETA, internal notes)
-  * **Schedule** date/time window (no technician assignment shown to user)
-  * Move status → `in_progress` when work starts.
-
-5. **Resident Updates**
-
-* Resident sees real-time status, ETA, and any admin notes.
-* Resident can **add comments/images** if needed; edits are tracked in `activity`.
-
-6. **Resolve & Confirm**
-
-* Admin sets status → `completed`, adds resolution notes & optional completion photo.
-* Resident receives completion notification and submits **rating/feedback** (optional).
-
-7. **Analytics & Audit**
-
-* Daily job aggregates metrics: created vs completed, avg response/resolve time, rating trends, category heatmap.
-* All actions appended to `audit_logs`.
+  * `role`: `'resident' | 'admin'`
+  * `buildingId`, `flatId`
 
 ---
 
-## Suggested Firestore Collections (lean)
+### **Database & Files**
+
+* **Cloud Firestore** – stores residents, flats, and ticket data
+* **Firebase Storage** – stores uploaded images/videos of issues
+
+---
+
+### **Backend / Serverless Logic**
+
+* **Cloud Functions (TypeScript)** for automation:
+
+  * `onTicketCreate` → notify admins via **FCM**
+  * `onTicketStatusChange` → notify resident via **FCM**
+  * `dailyAnalytics` → aggregate stats (optional BigQuery export)
+  * `cleanupOldTickets` → archive closed tickets (optional)
+
+---
+
+### **Notifications**
+
+* **Firebase Cloud Messaging (FCM)** only
+
+  * Residents get push when their ticket status changes
+  * Admins get push when a new ticket is created
+* No email, no SMS — just app/browser push notifications
+
+---
+
+### **Hosting & Security**
+
+* **Firebase Hosting** (with CDN & HTTPS)
+* **Firestore Rules** – enforce access by user role and flat ID
+* **Storage Rules** – restrict media by ticket ownership
+* **Monitoring:** Firebase Console Logs + Crashlytics (for PWA errors)
+* **Backups:** Scheduled Firestore export to Cloud Storage
+
+---
+
+# 🔁 Core Flow (No Technician, No Email)
+
+### **Actors:** Resident & Admin
+
+---
+
+### 1️⃣ Resident Login
+
+* Resident logs in using **phone number + OTP**.
+* System verifies role and maps them to their **flat** and **building**.
+
+---
+
+### 2️⃣ Raise Service Request
+
+* Resident selects:
+
+  * **Service type:** electrician, plumber, carpenter, etc.
+  * **Preferred date/time slot**
+  * **Description** + optional **images/videos**
+* Ticket created in Firestore with status = `pending`.
+* Cloud Function triggers push notification → Admin.
+
+---
+
+### 3️⃣ Admin Acknowledges & Updates
+
+* Admin dashboard lists all **pending tickets**.
+* Admin can:
+
+  * View ticket details
+  * Mark as `acknowledged`, `in_progress`, or `completed`
+  * Add **internal notes or ETA**
+
+---
+
+### 4️⃣ Real-Time Tracking (Resident View)
+
+* Resident sees **status updates instantly** through Firestore listeners.
+* Gets **push notifications** for any update.
+
+---
+
+### 5️⃣ Completion & Feedback
+
+* Admin marks ticket as `completed`.
+* Resident receives a push notification → can submit **feedback rating (1-5)** and short comment.
+* Ticket archived as closed.
+
+---
+
+### 6️⃣ Analytics (Admin Dashboard)
+
+* Dashboard shows:
+
+  * Total requests per category
+  * Avg. response/resolution time
+  * Pending vs completed tickets
+  * Feedback averages
+
+---
+
+# 🗂️ Firestore Collections (Simplified)
 
 ```
+/users/{userId}
+  role, name, phone, buildingId, flatId, fcmTokens[]
+
 /buildings/{buildingId}
   name, address
 
 /flats/{flatId}
-  buildingId, tower, flatNo, residentUserId, status
-
-/users/{userId}
-  role, buildingId, flatId, name, phone, fcmTokens[]
+  buildingId, flatNo, residentUserId
 
 /tickets/{ticketId}
-  buildingId, flatId, createdBy, category, priority,
+  buildingId, flatId, createdBy, category,
   description, images[], preferredDate, preferredSlot,
-  status: 'pending'|'acknowledged'|'scheduled'|'in_progress'|'completed'|'cancelled',
-  eta, adminNotes, createdAt, updatedAt, sla:{firstResponseAt,resolvedAt}
-
-/ticket_comments/{ticketId}/comments/{commentId}
-  authorId, message, images[], createdAt
+  status, adminNotes, createdAt, updatedAt
 
 /audit_logs/{logId}
-  actorId, action, resourceType, resourceId, before?, after?, ts
+  actorId, action, ticketId, timestamp
 ```
 
 ---
 
-## Minimal Rules Sketch
+# ✅ Advantages of This Setup
 
-* Residents: CRUD only on **their** tickets & profile; read building- and flat-scoped data.
-* Admins: Read all in `buildingId`; update any ticket; write `audit_logs`.
-* Storage: ticket-media path scoped to `{ticketId}` with same RBAC.
+* **No email dependencies** — faster OTP-based sign-in.
+* **100 % Firebase-native** — Auth, DB, Storage, Hosting, FCM all under one console.
+* **Real-time updates** via Firestore listeners — no page refreshes.
+* **Push notifications only** — mobile-first and instant.
+* **Easily expandable** later (technician role, payments, analytics exports, etc.).
 
 ---
-
-If you want, I can turn this into a one-page PDF diagram (boxes & arrows) matching your branding.
