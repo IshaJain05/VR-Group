@@ -3,7 +3,7 @@ Maintenance application for VR Group
 
 ---
 
-# 🏗️ Architecture
+#  Architecture
 
 ### **Client (Web / PWA)**
 
@@ -71,7 +71,7 @@ Maintenance application for VR Group
 
 ---
 
-# 🔁 Core Flow (No Technician, No Email)
+#  Core Flow (No Technician, No Email)
 
 ### **Actors:** Resident & Admin
 
@@ -133,7 +133,7 @@ Maintenance application for VR Group
 
 ---
 
-# 🗂️ Firestore Collections (Simplified)
+#  Firestore Collections (Simplified)
 
 ```
 /users/{userId}
@@ -156,7 +156,7 @@ Maintenance application for VR Group
 
 ---
 
-# ✅ Advantages of This Setup
+#  Advantages of This Setup
 
 * **No email dependencies** — faster OTP-based sign-in.
 * **100 % Firebase-native** — Auth, DB, Storage, Hosting, FCM all under one console.
